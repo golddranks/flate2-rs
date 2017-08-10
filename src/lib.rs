@@ -168,6 +168,7 @@ pub mod bufread {
     pub use zlib::DecoderReaderBuf as ZlibDecoder;
     pub use gz::EncoderReaderBuf as GzEncoder;
     pub use gz::DecoderReaderBuf as GzDecoder;
+    pub use gz::DecoderReaderBufWithoutCrc as GzDecoderNoCrc;
     pub use gz::MultiDecoderReaderBuf as MultiGzDecoder;
 }
 

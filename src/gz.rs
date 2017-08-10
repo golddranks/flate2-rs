@@ -283,6 +283,14 @@ pub struct DecoderReaderBuf<R> {
     finished: bool,
 }
 
+/// A buffered reader for Gzip, but doesn't check the CRC.
+#[derive(Debug)]
+pub struct DecoderReaderBufWithoutCrc<R> {
+    inner: deflate::DecoderReaderBuf<R>,
+    header: Header,
+    finished: bool,
+}
+
 /// A gzip streaming decoder that decodes all members of a multistream
 ///
 /// A gzip member consists of a header, compressed data and a trailer. The [gzip
@@ -948,6 +956,100 @@ impl<R: BufRead> Read for DecoderReaderBuf<R> {
 }
 
 impl<R: BufRead + Write> Write for DecoderReaderBuf<R> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.get_mut().write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.get_mut().flush()
+    }
+}
+
+
+
+
+
+
+
+
+impl<R: BufRead> DecoderReaderBufWithoutCrc<R> {
+    /// Creates a new decoder from the given reader, immediately parsing the
+    /// gzip header.
+    ///
+    /// # Errors
+    ///
+    /// If an error is encountered when parsing the gzip header, an error is
+    /// returned.
+    pub fn new(mut r: R) -> io::Result<DecoderReaderBufWithoutCrc<R>> {
+        let header = try!(read_gz_header(&mut r));
+
+        let flate = deflate::DecoderReaderBuf::new(r);
+        return Ok(DecoderReaderBufWithoutCrc {
+            inner: flate,
+            header: header,
+            finished: false,
+        });
+    }
+
+    fn finish(&mut self) -> io::Result<()> {
+        if self.finished {
+            return Ok(());
+        }
+        let ref mut buf = [0u8; 8];
+        {
+            let mut len = 0;
+
+            while len < buf.len() {
+                match try!(self.inner.get_mut().read(&mut buf[len..])) {
+                    0 => return Err(corrupt()),
+                    n => len += n,
+                }
+            }
+        }
+
+        self.finished = true;
+        Ok(())
+    }
+}
+
+impl<R> DecoderReaderBufWithoutCrc<R> {
+    /// Returns the header associated with this stream.
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
+
+    /// Acquires a reference to the underlying reader.
+    pub fn get_ref(&self) -> &R {
+        self.inner.get_ref()
+    }
+
+    /// Acquires a mutable reference to the underlying stream.
+    ///
+    /// Note that mutation of the stream may result in surprising results if
+    /// this encoder is continued to be used.
+    pub fn get_mut(&mut self) -> &mut R {
+        self.inner.get_mut()
+    }
+
+    /// Consumes this decoder, returning the underlying reader.
+    pub fn into_inner(self) -> R {
+        self.inner.into_inner()
+    }
+}
+
+impl<R: BufRead> Read for DecoderReaderBufWithoutCrc<R> {
+    fn read(&mut self, into: &mut [u8]) -> io::Result<usize> {
+        match try!(self.inner.read(into)) {
+            0 => {
+                try!(self.finish());
+                Ok(0)
+            }
+            n => Ok(n),
+        }
+    }
+}
+
+impl<R: BufRead + Write> Write for DecoderReaderBufWithoutCrc<R> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.get_mut().write(buf)
     }
