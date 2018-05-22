@@ -12,9 +12,9 @@ fn main() {
 
 // Return a vector containing the Defalte compressed version of hello world
 fn deflateencoder_read_hello_world() -> io::Result<Vec<u8>> {
-    let mut ret_vec = [0;100];
+    let mut ret_vec = [0; 100];
     let c = b"hello world";
-    let mut deflater = DeflateEncoder::new(&c[..], Compression::Fast);
+    let mut deflater = DeflateEncoder::new(&c[..], Compression::fast());
     let count = deflater.read(&mut ret_vec)?;
     Ok(ret_vec[0..count].to_vec())
 }

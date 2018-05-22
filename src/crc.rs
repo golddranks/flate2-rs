@@ -36,7 +36,7 @@ impl Crc {
     }
 
     /// The number of bytes that have been used to calculate the CRC.
-    /// This value is only accurate if the amount is lower than 2^32.
+    /// This value is only accurate if the amount is lower than 2<sup>32</sup>.
     pub fn amount(&self) -> u32 {
         self.amt
     }
@@ -44,9 +44,7 @@ impl Crc {
     /// Update the CRC with the bytes in `data`.
     pub fn update(&mut self, data: &[u8]) {
         self.amt = self.amt.wrapping_add(data.len() as u32);
-        self.crc = unsafe {
-            ffi::mz_crc32(self.crc, data.as_ptr(), data.len() as libc::size_t)
-        };
+        self.crc = unsafe { ffi::mz_crc32(self.crc, data.as_ptr(), data.len() as libc::size_t) };
     }
 
     /// Reset the CRC.
@@ -58,9 +56,11 @@ impl Crc {
     /// Combine the CRC with the CRC for the subsequent block of bytes.
     pub fn combine(&mut self, additional_crc: &Crc) {
         self.crc = unsafe {
-            ffi::mz_crc32_combine(self.crc as ::libc::c_ulong,
-                                  additional_crc.crc as ::libc::c_ulong,
-                                  additional_crc.amt as ::libc::off_t)
+            ffi::mz_crc32_combine(
+                self.crc as ::libc::c_ulong,
+                additional_crc.crc as ::libc::c_ulong,
+                additional_crc.amt as ::libc::off_t,
+            )
         };
         self.amt += additional_crc.amt;
     }
@@ -105,7 +105,7 @@ impl<R> CrcReader<R> {
 
 impl<R: Read> Read for CrcReader<R> {
     fn read(&mut self, into: &mut [u8]) -> io::Result<usize> {
-        let amt = try!(self.inner.read(into));
+        let amt = self.inner.read(into)?;
         self.crc.update(&into[..amt]);
         Ok(amt)
     }
